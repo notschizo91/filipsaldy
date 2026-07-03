@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SVG Extrude → STL</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='6' width='12' height='8' fill='%23a855f7'/><rect x='4' y='2' width='8' height='4' fill='%2310b981'/></svg>" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>SVG Extrude <span class="arrow">→</span> STL</h1>
+      <p class="subtitle">
+        Click paths · assign height &amp; color · print it
+        <span class="badge">3D&nbsp;·&nbsp;FREE</span>
+      </p>
+    </header>
+
+    <main class="layout">
+      <section class="panel" id="panel-source">
+        <h2>1 · SVG source</h2>
+
+        <div id="dropzone">
+          <svg class="up-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v3a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-3" />
+            <polyline points="7 8 12 3 17 8" />
+            <line x1="12" y1="3" x2="12" y2="16" />
+          </svg>
+          <p class="dz-title">Drag &amp; drop your SVG here</p>
+          <p class="dz-sub">or</p>
+          <button type="button" class="btn" id="browse-btn">Browse files</button>
+          <p class="dz-hint">.svg only</p>
+          <input type="file" id="file-input" accept=".svg,image/svg+xml" hidden />
+        </div>
+
+        <div id="stage" hidden>
+          <div class="stage-bar">
+            <span id="file-name" class="mono"></span>
+            <button type="button" class="btn btn-small" id="change-file">Load another file</button>
+          </div>
+          <p class="hint">Click a path to select it — click again to remove it. Selected paths get extruded.</p>
+          <div id="svg-holder"></div>
+        </div>
+
+        <div id="warnings" hidden></div>
+      </section>
+
+      <section class="panel" id="panel-preview">
+        <h2>2 · 3D preview</h2>
+        <div class="viewer-wrap">
+          <div id="viewer-box"></div>
+          <div id="viewer-hint">Select paths on the left<br />to see the model</div>
+          <button type="button" class="btn btn-small" id="fit-btn" title="Frame the model">⤢ fit view</button>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-parts">
+        <h2>3 · Parts &amp; export</h2>
+
+        <div id="editor" hidden>
+          <div class="editor-head">
+            <span class="editor-label">Editing</span>
+            <span id="editor-name" class="mono"></span>
+          </div>
+          <label class="field">
+            <span>Height (mm)</span>
+            <span class="field-row">
+              <input type="range" id="height-range" min="0.2" max="30" step="0.1" value="2" />
+              <input type="number" id="height-num" min="0.2" step="0.1" value="2" />
+            </span>
+          </label>
+          <label class="field">
+            <span>Color <em class="hint-inline">(preview only — STL has no color)</em></span>
+            <input type="color" id="color-input" value="#a855f7" />
+          </label>
+        </div>
+
+        <ul id="legend"></ul>
+        <p id="legend-empty" class="hint">No paths selected yet.</p>
+
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <label class="field">
+            <span>Curve tolerance <em class="hint-inline">(SVG units, smaller = smoother)</em></span>
+            <input type="number" id="tol-input" min="0.01" step="0.1" value="0.5" />
+          </label>
+          <label class="field">
+            <span>Scale <em class="hint-inline">(mm per SVG unit)</em></span>
+            <input type="number" id="mm-input" min="0.001" step="0.1" value="1" />
+          </label>
+        </details>
+
+        <div class="size-row">
+          <span>Model size</span>
+          <span id="size-readout" class="mono accent2">—</span>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="export-btn" disabled>⬇ Download STL</button>
+        <p id="export-note" class="hint"></p>
+      </section>
+    </main>
+
+    <script type="module" src="/fable_output/Main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80">
+  <!-- donut: outer circle + inner circle in one path = shape with a hole -->
+  <path id="donut" fill="#8b5cf6"
+        d="M 12 40 a 18 18 0 1 0 36 0 a 18 18 0 1 0 -36 0 Z
+           M 22 40 a 8 8 0 1 0 16 0 a 8 8 0 1 0 -16 0 Z" />
+  <rect id="plate" x="60" y="8" width="34" height="22" rx="4" fill="#4b5563" />
+  <circle id="dot" cx="80" cy="55" r="12" fill="#10b981" />
+  <polygon id="wedge" points="8,74 18,54 28,74" fill="#9ca3af" />
+  <g transform="translate(100 8) rotate(15)">
+    <ellipse cx="6" cy="8" rx="6" ry="9" fill="#a855f7" />
+  </g>
+  <!-- deliberately open path: should trigger the auto-close warning -->
+  <path id="open-path" d="M 100 70 l 12 -12 l -4 14" fill="none" stroke="#ef4444" />
+</svg>

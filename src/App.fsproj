@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SvgExtrude</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Types.fs" />
+    <Compile Include="PathParser.fs" />
+    <Compile Include="Rings.fs" />
+    <Compile Include="SvgFlatten.fs" />
+    <Compile Include="Geometry.fs" />
+    <Compile Include="Stl.fs" />
+    <Compile Include="Viewer.fs" />
+    <Compile Include="Main.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Fable.Core" Version="4.3.0" />
+    <PackageReference Include="Fable.Browser.Dom" Version="2.16.0" />
+  </ItemGroup>
+
+</Project>

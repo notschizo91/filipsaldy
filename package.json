@@ -1,0 +1,20 @@
+{
+  "name": "svg-extrude-stl",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "dotnet fable watch src -o fable_output --run vite",
+    "build": "dotnet fable src -o fable_output && vite build",
+    "preview": "vite preview",
+    "test:e2e": "node tests/e2e.mjs"
+  },
+  "dependencies": {
+    "earcut": "^3.0.1",
+    "three": "^0.172.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.61.1",
+    "vite": "^6.0.0"
+  }
+}
