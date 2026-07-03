@@ -55,10 +55,13 @@ try {
   check(true, 'SVG uploaded and stage shown');
   check(await page.locator('.warning').count() >= 1, 'open-subpath warning surfaced');
 
-  // --- select paths and assign heights ---
-  // Selection is hit-tested at the click point, so click inside each shape
-  // (fractions of the element's bounding box).
+  // --- build paths (groups) and assign shapes to them ---
+  // Shape clicks are hit-tested at the click point, so click inside each
+  // island (fractions of the element's bounding box).
   const clickPart = async (selector, fx, fy) => {
+    // Interacting with the right-hand panel can scroll the SVG offscreen;
+    // mouse.click needs viewport coordinates, so bring the shape back first.
+    await page.locator(selector).scrollIntoViewIfNeeded();
     const box = await page.locator(selector).boundingBox();
     await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
   };
@@ -66,41 +69,61 @@ try {
     await page.fill('#height-num', String(h));
     await page.dispatchEvent('#height-num', 'input');
   };
+  const newPath = async (h) => {
+    await page.fill('#new-height', String(h));
+    await page.click('#new-path-btn');
+  };
 
+  // Path 1 exists automatically — starting a new path is not mandatory.
   await clickPart('[data-svgx-id="donut"]', 0.14, 0.5); // on the ring, not the hole
-  await setHeight(4);
-  await clickPart('[data-svgx-id="plate"]', 0.5, 0.5);
-  await setHeight(2);
+  await setHeight(4); // editor edits the active path
+
+  await newPath(8);
   await clickPart('[data-svgx-id="dot"]', 0.5, 0.5);
-  await setHeight(8);
-  await clickPart('[data-svgx-id="wedge"]', 0.5, 0.6);
-  await setHeight(3);
+
+  await newPath(6);
   await clickPart('g ellipse', 0.5, 0.5); // transformed ellipse, generated id
-  await setHeight(6);
 
-  // Two disconnected islands inside ONE <path> select independently.
+  // One path holding BOTH islands of the single twin <path> element.
+  await newPath(5);
   await clickPart('[data-svgx-id="twin"]', 0.5, 0.18); // upper square
-  await setHeight(5);
   await clickPart('[data-svgx-id="twin"]', 0.5, 0.82); // lower square
-  await setHeight(5);
 
-  check((await page.locator('#legend li').count()) === 7, 'legend lists 7 selected parts');
-  const twinLabels = await page.locator('#legend li .l-name').allTextContents();
+  // Go BACK to Path 1 and add another shape to it at its 4mm height.
+  await page.click('#legend li:first-child .l-name');
+  await clickPart('[data-svgx-id="plate"]', 0.5, 0.5);
+
+  await newPath(2);
+  await clickPart('[data-svgx-id="wedge"]', 0.5, 0.6);
+
+  check((await page.locator('#legend li').count()) === 5, 'legend lists 5 paths');
   check(
-    twinLabels.filter((t) => t.includes('twin')).length === 2,
-    'both islands of the single twin path are separate parts'
+    (await page.locator('#legend li:first-child .l-count').textContent()).includes('2'),
+    'plate joined Path 1 after re-activating it (2 parts)'
   );
-  check((await page.locator('.svgx-overlay').count()) === 7, 'selected parts are highlighted');
+  check(
+    (await page.locator('#legend li:nth-child(4) .l-count').textContent()).includes('2'),
+    'both islands of the single twin element are in one path'
+  );
+  check((await page.locator('.svgx-overlay').count()) === 7, '7 highlighted islands');
 
-  // color change on the active path (the ellipse)
+  // color change on the active path (the wedge's)
   await page.fill('#color-input', '#ff8800');
   await page.dispatchEvent('#color-input', 'input');
 
-  // deselect + reselect round-trip: click legend row for wedge, remove it, re-add
-  await page.click('#legend li[data-id="wedge:0"] .l-x');
-  check((await page.locator('#legend li').count()) === 6, 'deselect via legend works');
+  // clicking a shape already in the active path removes it; click re-adds it
   await clickPart('[data-svgx-id="wedge"]', 0.5, 0.6);
-  await setHeight(3);
+  check(
+    (await page.locator('#legend li:last-child .l-count').textContent()).includes('0'),
+    'clicking a shape again removes it from the active path'
+  );
+  await clickPart('[data-svgx-id="wedge"]', 0.5, 0.6);
+
+  // empty paths can be created and deleted freely
+  await newPath(9);
+  check((await page.locator('#legend li').count()) === 6, 'extra path created');
+  await page.click('#legend li:last-child .l-x');
+  check((await page.locator('#legend li').count()) === 5, 'path deleted via legend ×');
 
   const canvasBox = await page.locator('#viewer-box canvas').boundingBox();
   check(canvasBox && canvasBox.width > 100 && canvasBox.height > 100, '3D preview canvas is rendered');
@@ -161,11 +184,12 @@ try {
   }
   check(bad === 0, `watertight mesh (${bad} bad edges of ${edges.size})`);
 
-  // Volume sanity: smooth-shape total is ~9973 mm³ (~9640 discretized at the
-  // default 0.5 tolerance) plus the two 10x10x5 twin squares = ~10640 mm³.
+  // Volume sanity (discretized areas at the default 0.5 tolerance):
+  // donut ~796mm²x4 + plate ~729mm²x4 + dot ~432mm²x8 + ellipse ~162mm²x6
+  // + twins 200mm²x5 + wedge 200mm²x2 ≈ 11930 mm³.
   check(
-    signedVolume > 10200 && signedVolume < 11000,
-    `volume in expected range (${signedVolume.toFixed(0)} mm³ vs ~10640 expected)`
+    signedVolume > 11400 && signedVolume < 12400,
+    `volume in expected range (${signedVolume.toFixed(0)} mm³ vs ~11930 expected)`
   );
 
   await page.screenshot({ path: path.join(ROOT, 'e2e-screenshot.png'), fullPage: true });

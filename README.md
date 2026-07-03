@@ -56,15 +56,19 @@ orientation and total volume via signed-volume integration.
    classified by containment depth (even-odd): odd-depth rings become **holes**
    of their innermost containing ring. Open subpaths are auto-closed and a
    non-blocking warning is shown.
-3. **Select** — clicks are hit-tested against individual *islands*: if one
-   `<path>` element contains several disconnected outlines (typical of
-   vectorizer output, where the whole image is a single path), each island is
-   selectable on its own. Click a shape to select it (purple overlay), click
-   again while active to deselect. Each selection gets a height (default 2 mm,
-   min 0.2 mm, slider + number input) and a color. The legend lists every
-   selected part (`path #1 · 2` = second island of path #1); click a row to
-   edit it, `×` to remove it. Unselected parts are excluded from preview and
-   export.
+3. **Build paths** — the user groups shapes into *paths*, each with one height
+   and one color. "Path 1" exists as soon as a file loads (starting a new path
+   is never mandatory); clicked shapes join the **active** path, and clicking
+   a shape again removes it. The **Start new path** button begins a new group
+   with the height + color chosen in the form; clicking a path in the list
+   makes it active again so more shapes can be added to it later (clicking a
+   shape that belongs to another path moves it to the active one). Clicks are
+   hit-tested against individual *islands*: if one `<path>` element contains
+   several disconnected outlines (typical of vectorizer output, where the
+   whole image is a single path), each island is selectable on its own.
+   Selected islands get an overlay tint in their path's color. The editor
+   panel changes the active path's height/color for all its shapes; `×`
+   deletes a path. Unselected shapes are excluded from preview and export.
 4. **Preview** — three.js scene, Z-up, orbit/pan/zoom, ambient + directional
    lights, per-path meshes rebuilt individually when their height changes
    (color changes only touch the material).

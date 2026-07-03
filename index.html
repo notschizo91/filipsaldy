@@ -38,7 +38,7 @@
             <span id="file-name" class="mono"></span>
             <button type="button" class="btn btn-small" id="change-file">Load another file</button>
           </div>
-          <p class="hint">Click a path to select it — click again to remove it. Selected paths get extruded.</p>
+          <p class="hint">Click a shape to add it to the active path — click it again to remove it. Switch the active path in the list on the right to keep adding shapes to an earlier path.</p>
           <div id="svg-holder"></div>
         </div>
 
@@ -55,7 +55,17 @@
       </section>
 
       <section class="panel" id="panel-parts">
-        <h2>3 · Parts &amp; export</h2>
+        <h2>3 · Paths &amp; export</h2>
+
+        <div class="new-path">
+          <span class="np-title">New path</span>
+          <span class="field-row">
+            <input type="number" id="new-height" min="0.2" step="0.1" value="2" title="Height (mm)" />
+            <input type="color" id="new-color" value="#a855f7" title="Preview color" />
+            <button type="button" class="btn btn-small" id="new-path-btn">+ Start new path</button>
+          </span>
+          <p class="hint">Clicked shapes join the <em>active</em> path. Start a new path to give the next shapes a different height &amp; color — or click a path below to make it active again and add more shapes to it.</p>
+        </div>
 
         <div id="editor" hidden>
           <div class="editor-head">
@@ -76,7 +86,7 @@
         </div>
 
         <ul id="legend"></ul>
-        <p id="legend-empty" class="hint">No paths selected yet.</p>
+        <p id="legend-empty" class="hint">No paths yet — upload an SVG and click a shape.</p>
 
         <details class="advanced">
           <summary>Advanced</summary>
