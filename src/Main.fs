@@ -18,8 +18,14 @@ let private readFileText (file: obj) (cb: string -> unit) : unit = jsNative
 let private byId (id: string) : HTMLElement = document.getElementById id
 let private inputById (id: string) : HTMLInputElement = byId id :?> HTMLInputElement
 
+let private svgNS = "http://www.w3.org/2000/svg"
+
 // ---------------------------------------------------------------------------
 // State
+//
+// Selection is per *island*: one element (e.g. a single vectorizer <path>) can
+// contain several disconnected shapes, and each is selectable on its own.
+// Part keys are "<elementId>:<shapeIndex>".
 // ---------------------------------------------------------------------------
 
 let mutable private svgRoot: Element option = None
@@ -28,6 +34,8 @@ let private parsed = Dictionary<string, ParsedElement>()
 let private domEls = Dictionary<string, Element>()
 let private labels = Dictionary<string, string>()
 let private selection = Dictionary<string, Assignment>()
+let private partsIndex = Dictionary<string, string * int>()
+let private overlays = Dictionary<string, Element>()
 let private order = ResizeArray<string>()
 let mutable private activeId: string option = None
 let mutable private tolerance = 0.5
@@ -43,6 +51,21 @@ let private defaultColors =
 let private defaultHeight = 2.0
 let private minHeight = 0.2
 
+let private partKey (elId: string) (idx: int) = elId + ":" + string idx
+
+let private partShape (key: string) : Shape option =
+    match partsIndex.TryGetValue key with
+    | true, (elId, idx) when parsed.ContainsKey elId && idx < parsed.[elId].Shapes.Length ->
+        Some parsed.[elId].Shapes.[idx]
+    | _ -> None
+
+let private partLabel (key: string) : string =
+    match partsIndex.TryGetValue key with
+    | true, (elId, idx) when labels.ContainsKey elId ->
+        let count = if parsed.ContainsKey elId then parsed.[elId].Shapes.Length else 1
+        if count > 1 then sprintf "%s · %d" labels.[elId] (idx + 1) else labels.[elId]
+    | _ -> key
+
 // ---------------------------------------------------------------------------
 // Geometry plumbing
 // ---------------------------------------------------------------------------
@@ -57,15 +80,41 @@ let private toMm (p: Pt) : Pt =
         { X = (p.X - cx) * mmPerUnit; Y = (cy - p.Y) * mmPerUnit }
     | None -> { X = p.X * mmPerUnit; Y = -p.Y * mmPerUnit }
 
-let private meshFor (id: string) : float array * int =
-    match parsed.TryGetValue id, selection.TryGetValue id with
-    | (true, pe), (true, a) ->
-        let shapes = pe.Shapes |> List.map (Geometry.mapShape toMm)
-        Geometry.extrudeAll shapes a.Height
+let private meshFor (key: string) : float array * int =
+    match partShape key, selection.TryGetValue key with
+    | Some shape, (true, a) -> Geometry.extrude (Geometry.mapShape toMm shape) a.Height
     | _ -> [||], 0
 
 let private recomputeBounds () =
     contentBounds <- Geometry.bounds (parsed.Values |> Seq.collect (fun pe -> pe.Shapes))
+
+// ---------------------------------------------------------------------------
+// Selection overlays (a highlight <path> per selected island, drawn on top)
+// ---------------------------------------------------------------------------
+
+let private shapeD (s: Shape) : string =
+    let ringD (r: Ring) =
+        "M " + (r |> Array.map (fun p -> sprintf "%g %g" p.X p.Y) |> String.concat " L ") + " Z"
+    s.Outer :: s.Holes |> List.map ringD |> String.concat " "
+
+let private removeOverlay (key: string) =
+    match overlays.TryGetValue key with
+    | true, node ->
+        if not (isNull node.parentElement) then node.parentElement.removeChild node |> ignore
+        overlays.Remove key |> ignore
+    | _ -> ()
+
+let private addOverlay (key: string) (shape: Shape) =
+    match svgRoot with
+    | Some root ->
+        removeOverlay key
+        let p = document.createElementNS (svgNS, "path")
+        p.setAttribute ("d", shapeD shape)
+        p.setAttribute ("class", "svgx-overlay")
+        p.setAttribute ("fill-rule", "evenodd")
+        root.appendChild p |> ignore
+        overlays.[key] <- p
+    | None -> ()
 
 // ---------------------------------------------------------------------------
 // UI updates
@@ -92,8 +141,7 @@ let private updateWarnings () =
 
 let private updateSizeReadout () =
     let el = byId "size-readout"
-    let selectedShapes =
-        order |> Seq.collect (fun id -> parsed.[id].Shapes)
+    let selectedShapes = order |> Seq.choose partShape
     match Geometry.bounds selectedShapes with
     | Some (minX, minY, maxX, maxY) when order.Count > 0 ->
         let w = (maxX - minX) * mmPerUnit
@@ -112,40 +160,35 @@ let private renderLegend () =
     (byId "legend-empty")?style?display <- if order.Count = 0 then "" else "none"
     let rows =
         order
-        |> Seq.map (fun id ->
-            let a = selection.[id]
-            let active = (activeId = Some id)
+        |> Seq.map (fun key ->
+            let a = selection.[key]
+            let active = (activeId = Some key)
             sprintf
                 """<li data-id="%s" class="%s"><span class="swatch" style="background:%s"></span><span class="l-name">%s</span><span class="l-h">%.1f mm</span><button class="l-x" title="Remove from selection">×</button></li>"""
-                id (if active then "active" else "") a.Color labels.[id] a.Height)
+                key (if active then "active" else "") a.Color (partLabel key) a.Height)
         |> String.concat ""
     ul.innerHTML <- rows
 
 let private renderEditor () =
     let panel = byId "editor"
     match activeId with
-    | Some id when selection.ContainsKey id ->
+    | Some key when selection.ContainsKey key ->
         panel.removeAttribute "hidden"
-        let a = selection.[id]
-        (byId "editor-name").textContent <- labels.[id]
+        let a = selection.[key]
+        (byId "editor-name").textContent <- partLabel key
         (inputById "height-num").value <- string a.Height
         (inputById "height-range").value <- string a.Height
         (inputById "color-input").value <- a.Color
     | _ -> panel.setAttribute ("hidden", "")
 
-let private highlight (id: string) (on: bool) =
-    match domEls.TryGetValue id with
-    | true, el -> if on then el.classList.add "svgx-sel" else el.classList.remove "svgx-sel"
-    | _ -> ()
-
-let private refreshMesh (id: string) =
+let private refreshMesh (key: string) =
     if not (isNull viewer) then
-        let positions, _ = meshFor id
-        Viewer.setMesh viewer id positions selection.[id].Color
+        let positions, _ = meshFor key
+        Viewer.setMesh viewer key positions selection.[key].Color
 
 let private refreshAll () =
-    for id in order do
-        refreshMesh id
+    for key in order do
+        refreshMesh key
     updateSizeReadout ()
     renderLegend ()
 
@@ -158,35 +201,75 @@ let private setActive (id: string option) =
     renderEditor ()
     renderLegend ()
 
-let private select (id: string) =
+let private select (elId: string) (idx: int) =
+    let key = partKey elId idx
+    partsIndex.[key] <- (elId, idx)
     let color = defaultColors.[colorCursor % defaultColors.Length]
     colorCursor <- colorCursor + 1
-    selection.[id] <- { Height = defaultHeight; Color = color }
-    order.Add id
-    highlight id true
-    refreshMesh id
+    selection.[key] <- { Height = defaultHeight; Color = color }
+    order.Add key
+    match partShape key with
+    | Some shape -> addOverlay key shape
+    | None -> ()
+    refreshMesh key
     if not (isNull viewer) then Viewer.fitView viewer
-    setActive (Some id)
+    setActive (Some key)
     updateSizeReadout ()
     updateExportState ()
 
-let private deselect (id: string) =
-    selection.Remove id |> ignore
-    order.Remove id |> ignore
-    highlight id false
-    if not (isNull viewer) then Viewer.removeMesh viewer id
-    if activeId = Some id then
+let private deselect (key: string) =
+    selection.Remove key |> ignore
+    partsIndex.Remove key |> ignore
+    order.Remove key |> ignore
+    removeOverlay key
+    if not (isNull viewer) then Viewer.removeMesh viewer key
+    if activeId = Some key then
         setActive (if order.Count > 0 then Some order.[order.Count - 1] else None)
     else
         renderLegend ()
     updateSizeReadout ()
     updateExportState ()
 
-let private toggle (id: string) =
-    if selection.ContainsKey id then
-        if activeId = Some id then deselect id else setActive (Some id)
+let private togglePart (elId: string) (idx: int) =
+    let key = partKey elId idx
+    if selection.ContainsKey key then
+        if activeId = Some key then deselect key else setActive (Some key)
     else
-        select id
+        select elId idx
+
+// ---------------------------------------------------------------------------
+// Click hit-testing (in root viewBox coordinates)
+// ---------------------------------------------------------------------------
+
+let private clientToSvg (svg: Element) (cx: float) (cy: float) : Pt option =
+    let m: obj = svg?getScreenCTM ()
+    if isNull m then None
+    else
+        let inv: obj = m?inverse ()
+        let a: float = inv?a
+        let b: float = inv?b
+        let c: float = inv?c
+        let d: float = inv?d
+        let e: float = inv?e
+        let f: float = inv?f
+        Some { X = a * cx + c * cy + e; Y = b * cx + d * cy + f }
+
+/// Find the topmost island under the point: elements in reverse document
+/// order (later elements paint on top), point inside the outer ring and not
+/// inside any hole.
+let private hitTest (p: Pt) : (string * int) option =
+    let ids = domEls.Keys |> Seq.toArray
+    let mutable result = None
+    for k in ids.Length - 1 .. -1 .. 0 do
+        if result.IsNone then
+            let elId = ids.[k]
+            parsed.[elId].Shapes
+            |> List.iteri (fun i s ->
+                if result.IsNone
+                   && Rings.contains s.Outer p
+                   && not (s.Holes |> List.exists (fun h -> Rings.contains h p)) then
+                    result <- Some (elId, i))
+    result
 
 // ---------------------------------------------------------------------------
 // SVG loading
@@ -221,6 +304,8 @@ let private sanitize (svg: Element) =
         for name in doomed do
             el.removeAttribute name
 
+/// Re-flatten every element (e.g. after a tolerance change) and re-apply the
+/// current selection to the new shapes.
 let private reparseAll () =
     match svgRoot with
     | None -> ()
@@ -229,6 +314,10 @@ let private reparseAll () =
             parsed.[id] <- parseElement root tolerance id labels.[id] el
         recomputeBounds ()
         updateWarnings ()
+        for key in order |> Seq.toArray do
+            match partShape key with
+            | Some shape -> addOverlay key shape
+            | None -> deselect key // island disappeared at the new tolerance
 
 let private loadSvg (name: string) (text: string) =
     fileName <- (let d = name.LastIndexOf '.' in if d > 0 then name.Substring(0, d) else name)
@@ -237,6 +326,8 @@ let private loadSvg (name: string) (text: string) =
     domEls.Clear ()
     labels.Clear ()
     selection.Clear ()
+    partsIndex.Clear ()
+    overlays.Clear ()
     order.Clear ()
     activeId <- None
     colorCursor <- 0
@@ -273,15 +364,23 @@ let private loadSvg (name: string) (text: string) =
                 domEls.[id] <- el
                 labels.[id] <- label
                 parsed.[id] <- parseElement svg tolerance id label el
-                if parsed.[id].Shapes.IsEmpty then
-                    el.classList.add "svgx-dead"
-                else
-                    el.addEventListener (
-                        "click",
-                        fun ev ->
-                            ev.stopPropagation ()
-                            toggle id
-                    )
+                if parsed.[id].Shapes.IsEmpty then el.classList.add "svgx-dead"
+
+        // One listener on the root: hit-test the click point against every
+        // island, topmost first. This keeps disconnected shapes inside a
+        // single <path> individually selectable.
+        svg.addEventListener (
+            "click",
+            fun ev ->
+                let me = ev :?> MouseEvent
+                match clientToSvg svg me.clientX me.clientY with
+                | Some p ->
+                    match hitTest p with
+                    | Some (elId, idx) -> togglePart elId idx
+                    | None -> ()
+                | None -> ()
+        )
+
         recomputeBounds ()
         updateWarnings ()
         renderLegend ()
@@ -305,13 +404,20 @@ let private onExport () =
     if order.Count > 0 then
         let mutable degenerate = 0
         let parts =
-            [ for id in order do
-                let positions, degen = meshFor id
+            [ for key in order do
+                let positions, degen = meshFor key
                 degenerate <- degenerate + degen
                 positions ]
         let buf = Stl.build parts
         Stl.download (fileName + ".stl") buf
-        let openSel = order |> Seq.sumBy (fun id -> parsed.[id].OpenSubpaths)
+        let openSel =
+            order
+            |> Seq.choose (fun key ->
+                match partsIndex.TryGetValue key with
+                | true, (elId, _) -> Some elId
+                | _ -> None)
+            |> Seq.distinct
+            |> Seq.sumBy (fun elId -> parsed.[elId].OpenSubpaths)
         let note = byId "export-note"
         let tris = parts |> List.sumBy (fun p -> p.Length / 9)
         let extras =
@@ -354,16 +460,16 @@ let private init () =
             acceptFile (ev?dataTransfer?files?item (0))
     )
 
-    // Height + color editor for the active path.
+    // Height + color editor for the active part.
     let heightNum = inputById "height-num"
     let heightRange = inputById "height-range"
     let colorInput = inputById "color-input"
     let applyHeight (v: float) =
         match activeId with
-        | Some id when selection.ContainsKey id ->
+        | Some key when selection.ContainsKey key ->
             let h = if Double.IsNaN v then defaultHeight else max minHeight v
-            selection.[id] <- { selection.[id] with Height = h }
-            refreshMesh id
+            selection.[key] <- { selection.[key] with Height = h }
+            refreshMesh key
             updateSizeReadout ()
             renderLegend ()
         | _ -> ()
@@ -383,9 +489,9 @@ let private init () =
         "input",
         fun _ ->
             match activeId with
-            | Some id when selection.ContainsKey id ->
-                selection.[id] <- { selection.[id] with Color = colorInput.value }
-                if not (isNull viewer) then Viewer.setColor viewer id colorInput.value
+            | Some key when selection.ContainsKey key ->
+                selection.[key] <- { selection.[key] with Color = colorInput.value }
+                if not (isNull viewer) then Viewer.setColor viewer key colorInput.value
                 renderLegend ()
             | _ -> ()
     )
@@ -397,9 +503,9 @@ let private init () =
             let target = ev.target :?> Element
             match target.closest "[data-id]" with
             | Some row ->
-                let id = row.getAttribute "data-id"
-                if target.classList.contains "l-x" then deselect id
-                else setActive (Some id)
+                let key = row.getAttribute "data-id"
+                if target.classList.contains "l-x" then deselect key
+                else setActive (Some key)
             | None -> ()
     )
 

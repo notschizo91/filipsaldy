@@ -56,11 +56,15 @@ orientation and total volume via signed-volume integration.
    classified by containment depth (even-odd): odd-depth rings become **holes**
    of their innermost containing ring. Open subpaths are auto-closed and a
    non-blocking warning is shown.
-3. **Select** — click a path to select it (purple outline), click again while
-   active to deselect. Each selection gets a height (default 2 mm, min 0.2 mm,
-   slider + number input) and a color. The legend lists every selected path;
-   click a row to edit it, `×` to remove it. Unselected paths are excluded from
-   preview and export.
+3. **Select** — clicks are hit-tested against individual *islands*: if one
+   `<path>` element contains several disconnected outlines (typical of
+   vectorizer output, where the whole image is a single path), each island is
+   selectable on its own. Click a shape to select it (purple overlay), click
+   again while active to deselect. Each selection gets a height (default 2 mm,
+   min 0.2 mm, slider + number input) and a color. The legend lists every
+   selected part (`path #1 · 2` = second island of path #1); click a row to
+   edit it, `×` to remove it. Unselected parts are excluded from preview and
+   export.
 4. **Preview** — three.js scene, Z-up, orbit/pan/zoom, ambient + directional
    lights, per-path meshes rebuilt individually when their height changes
    (color changes only touch the material).

@@ -74,19 +74,6 @@ let extrude (shape: Shape) (height: float) : float array * int =
 
     out.ToArray(), degenerate
 
-/// Extrude every shape of an element into one triangle list.
-let extrudeAll (shapes: Shape list) (height: float) : float array * int =
-    let parts = shapes |> List.map (fun s -> extrude s height)
-    let total = parts |> List.sumBy (fun (a, _) -> a.Length)
-    let out = Array.zeroCreate<float> total
-    let mutable off = 0
-    let mutable degenerate = 0
-    for (a, d) in parts do
-        System.Array.Copy(a, 0, out, off, a.Length)
-        off <- off + a.Length
-        degenerate <- degenerate + d
-    out, degenerate
-
 /// Axis-aligned bounds of a set of shapes (outer rings only).
 let bounds (shapes: Shape seq) : (float * float * float * float) option =
     let mutable minX = infinity

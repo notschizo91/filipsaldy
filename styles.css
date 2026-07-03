@@ -237,11 +237,13 @@ body {
   opacity: 0.75;
 }
 
-#svg-holder .svgx-sel {
-  stroke: var(--accent-primary) !important;
-  stroke-width: 2px !important;
+#svg-holder .svgx-overlay {
+  fill: rgba(168, 85, 247, 0.3);
+  stroke: var(--accent-primary);
+  stroke-width: 2px;
   vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 3px rgba(168, 85, 247, 0.9));
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.9));
 }
 
 #svg-holder .svgx-dead {

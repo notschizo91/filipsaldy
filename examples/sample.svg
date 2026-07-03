@@ -9,6 +9,9 @@
   <g transform="translate(100 8) rotate(15)">
     <ellipse cx="6" cy="8" rx="6" ry="9" fill="#a855f7" />
   </g>
+  <!-- one path, two disconnected islands: each should be selectable on its own -->
+  <path id="twin" fill="#22d3ee"
+        d="M 54 40 h 10 v 10 h -10 Z M 54 58 h 10 v 10 h -10 Z" />
   <!-- deliberately open path: should trigger the auto-close warning -->
   <path id="open-path" d="M 100 70 l 12 -12 l -4 14" fill="none" stroke="#ef4444" />
 </svg>
