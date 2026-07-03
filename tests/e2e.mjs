@@ -184,12 +184,12 @@ try {
   }
   check(bad === 0, `watertight mesh (${bad} bad edges of ${edges.size})`);
 
-  // Volume sanity (discretized areas at the default 0.5 tolerance):
-  // donut ~796mm²x4 + plate ~729mm²x4 + dot ~432mm²x8 + ellipse ~162mm²x6
-  // + twins 200mm²x5 + wedge 200mm²x2 ≈ 11930 mm³.
+  // Volume sanity: at the default 0.01 tolerance the discretization is close
+  // to exact — donut 816.8mm²x4 + plate 734.3mm²x4 + dot 452.4mm²x8
+  // + ellipse 169.6mm²x6 + twins 200mm²x5 + wedge 200mm²x2 ≈ 12240 mm³.
   check(
-    signedVolume > 11400 && signedVolume < 12400,
-    `volume in expected range (${signedVolume.toFixed(0)} mm³ vs ~11930 expected)`
+    signedVolume > 12000 && signedVolume < 12350,
+    `volume in expected range (${signedVolume.toFixed(0)} mm³ vs ~12240 expected)`
   );
 
   await page.screenshot({ path: path.join(ROOT, 'e2e-screenshot.png'), fullPage: true });

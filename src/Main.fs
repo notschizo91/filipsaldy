@@ -53,7 +53,7 @@ let private partsIndex = Dictionary<string, string * int>()
 let private overlays = Dictionary<string, Element>()
 let private order = ResizeArray<string>()
 
-let mutable private tolerance = 0.5
+let mutable private tolerance = 0.01
 let mutable private mmPerUnit = 1.0
 /// Content bounds in SVG user units (minX, minY, maxX, maxY).
 let mutable private contentBounds: (float * float * float * float) option = None
